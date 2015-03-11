@@ -193,10 +193,11 @@ int eblob_defrag(struct eblob_backend *b)
 			continue;
 		}
 
-		/* skips sorted bases if defrag for them is not needed. Always defrag unsorted bases and
-		 * bases that could be merged or defraged.
+		/* skips sorted bases if defrag for them is not needed. Defrag unsorted bases and
+		 * bases that could be merged or defraged, if it is at appropriate defrag level.
 		 **/
-		if (want == EBLOB_DEFRAG_NOT_NEEDED && datasort_base_is_sorted(bctl) == 1)
+		if (want == EBLOB_DEFRAG_NOT_NEEDED &&
+		    (b->defrag_level == EBLOB_DEFRAG_LEVEL_COMPACT || datasort_base_is_sorted(bctl) == 1))
 			continue;
 
 		/* skips bases with sorted index if defrag thread was started only for index sort*/
@@ -347,7 +348,7 @@ void *eblob_defrag_thread(void *data)
 	return NULL;
 }
 
-int eblob_start_defrag(struct eblob_backend *b)
+int eblob_start_defrag(struct eblob_backend *b, enum eblob_defrag_level level)
 {
 	if (b->cfg.blob_flags & EBLOB_DISABLE_THREADS) {
 		return -EINVAL;
@@ -360,6 +361,7 @@ int eblob_start_defrag(struct eblob_backend *b)
 	}
 
 	b->want_defrag = EBLOB_DEFRAG_STATE_DATA_SORT;
+	b->defrag_level = level;
 	return 0;
 }
 

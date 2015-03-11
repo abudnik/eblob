@@ -459,6 +459,8 @@ struct eblob_backend {
 	 * 0:	data-sort should be preformed according to defrag_timeout
 	 */
 	volatile int		want_defrag;
+	/* blob exclusion during defragmentation depends on this param */
+	enum eblob_defrag_level	defrag_level;
 	/* Cached vfs stats */
 	struct statvfs		vfs_stat;
 	/* File descriptor used for database locking */
