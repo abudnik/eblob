@@ -362,23 +362,11 @@ int eblob_start_defrag(struct eblob_backend *b)
 		return -EALREADY;
 	}
 
-	b->want_defrag = EBLOB_DEFRAG_STATE_DATA_SORT;
-	return 0;
-}
-
-int eblob_start_compact(struct eblob_backend *b)
-{
-	if (b->cfg.blob_flags & EBLOB_DISABLE_THREADS) {
-		return -EINVAL;
+	if (b->cfg.blob_flags & EBLOB_DEFRAG_ONLY_FRAGMENTED) {
+		b->want_defrag = EBLOB_DEFRAG_STATE_DATA_COMPACT;
+	} else {
+		b->want_defrag = EBLOB_DEFRAG_STATE_DATA_SORT;
 	}
-
-	if (b->want_defrag) {
-		eblob_log(b->cfg.log, EBLOB_LOG_INFO,
-				"defrag: defragmentation is in progress.\n");
-		return -EALREADY;
-	}
-
-	b->want_defrag = EBLOB_DEFRAG_STATE_DATA_COMPACT;
 	return 0;
 }
 
