@@ -103,7 +103,7 @@ int datasort_force_sort(struct eblob_backend *b)
 
 	/* Kick in data-sort if auto-sort is enabled */
 	if (b->cfg.blob_flags & EBLOB_AUTO_DATASORT)
-		return eblob_start_defrag(b, EBLOB_DEFRAG_LEVEL_FULL);
+		return eblob_start_defrag(b);
 	else if(b->cfg.blob_flags & EBLOB_AUTO_INDEXSORT)
 		return eblob_start_index_sort(b);
 

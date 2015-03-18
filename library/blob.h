@@ -454,13 +454,12 @@ struct eblob_backend {
 
 	/*
 	 * Set when defrag/data-sort are explicitly requested
-	 * 2:	index-sort is explicitly requested via eblob_start_index_sort()
+	 * 3:	index-sort is explicitly requested via eblob_start_index_sort()
+	 * 2:	data-sort is explicitly requested via eblob_start_compact()
 	 * 1:	data-sort is explicitly requested via eblob_start_defrag()
 	 * 0:	data-sort should be preformed according to defrag_timeout
 	 */
 	volatile int		want_defrag;
-	/* blob exclusion during defragmentation depends on this param */
-	enum eblob_defrag_level	defrag_level;
 	/* Cached vfs stats */
 	struct statvfs		vfs_stat;
 	/* File descriptor used for database locking */

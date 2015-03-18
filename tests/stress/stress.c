@@ -899,7 +899,7 @@ main(int argc, char **argv)
 		if (cfg.test_force_defrag > 0 && cfg.iterations >= next_defrag) {
 			warnx("forcing defrag: %lld", cfg.iterations);
 			next_defrag = cfg.iterations + cfg.test_force_defrag;
-			eblob_start_defrag(cfg.b, EBLOB_DEFRAG_LEVEL_FULL);
+			eblob_start_defrag(cfg.b);
 		}
 
 		/* Reopen blob each test_reopen iterations */

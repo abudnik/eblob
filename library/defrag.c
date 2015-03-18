@@ -194,10 +194,10 @@ int eblob_defrag(struct eblob_backend *b)
 		}
 
 		/* skips sorted bases if defrag for them is not needed. Defrag unsorted bases and
-		 * bases that could be merged or defraged, if it is at appropriate defrag level.
+		 * bases that could be merged or defraged.
 		 **/
 		if (want == EBLOB_DEFRAG_NOT_NEEDED &&
-		    (b->defrag_level == EBLOB_DEFRAG_LEVEL_COMPACT || datasort_base_is_sorted(bctl) == 1))
+		    (b->want_defrag == EBLOB_DEFRAG_STATE_DATA_COMPACT || datasort_base_is_sorted(bctl) == 1))
 			continue;
 
 		/* skips bases with sorted index if defrag thread was started only for index sort*/
@@ -241,7 +241,8 @@ int eblob_defrag(struct eblob_backend *b)
 		 * NB! Last base always triggers sort of accumulated bases.
 		 * index sort process doesn't merge blobs, so skip this.
 		 */
-		if (current < bctl_cnt && b->want_defrag == EBLOB_DEFRAG_STATE_DATA_SORT) {
+		if (current < bctl_cnt && (b->want_defrag == EBLOB_DEFRAG_STATE_DATA_SORT ||
+					   b->want_defrag == EBLOB_DEFRAG_STATE_DATA_COMPACT)) {
 			/* Shortcuts */
 			struct eblob_base_ctl * const bctl = bctls[current];
 			records = eblob_stat_get(bctl->stat, EBLOB_LST_RECORDS_TOTAL)
@@ -273,7 +274,8 @@ int eblob_defrag(struct eblob_backend *b)
 				}
 				break;
 			}
-			case EBLOB_DEFRAG_STATE_DATA_SORT: {
+			case EBLOB_DEFRAG_STATE_DATA_SORT:
+			case EBLOB_DEFRAG_STATE_DATA_COMPACT: {
 				struct datasort_cfg dcfg = {
 					.b = b,
 					.bctl = bctls + previous,
@@ -348,7 +350,7 @@ void *eblob_defrag_thread(void *data)
 	return NULL;
 }
 
-int eblob_start_defrag(struct eblob_backend *b, enum eblob_defrag_level level)
+int eblob_start_defrag(struct eblob_backend *b)
 {
 	if (b->cfg.blob_flags & EBLOB_DISABLE_THREADS) {
 		return -EINVAL;
@@ -361,7 +363,22 @@ int eblob_start_defrag(struct eblob_backend *b, enum eblob_defrag_level level)
 	}
 
 	b->want_defrag = EBLOB_DEFRAG_STATE_DATA_SORT;
-	b->defrag_level = level;
+	return 0;
+}
+
+int eblob_start_compact(struct eblob_backend *b)
+{
+	if (b->cfg.blob_flags & EBLOB_DISABLE_THREADS) {
+		return -EINVAL;
+	}
+
+	if (b->want_defrag) {
+		eblob_log(b->cfg.log, EBLOB_LOG_INFO,
+				"defrag: defragmentation is in progress.\n");
+		return -EALREADY;
+	}
+
+	b->want_defrag = EBLOB_DEFRAG_STATE_DATA_COMPACT;
 	return 0;
 }
 
