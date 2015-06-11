@@ -702,7 +702,7 @@ int eblob_cache_lookup(struct eblob_backend *b, struct eblob_key *key,
 	pthread_rwlock_rdlock(&b->hash.root_lock);
 	if (b->cfg.blob_flags & EBLOB_L2HASH) {
 		/* If l2hash is enabled - look in it */
-		err = eblob_l2hash_lookup(&b->l2hash, key, res);
+		err = eblob_l2hash_lookup(&b->l2hash, key, res, b);
 	} else {
 		/* Look in memory cache */
 		err = eblob_hash_lookup_nolock(&b->hash, key, res);

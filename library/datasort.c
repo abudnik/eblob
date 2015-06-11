@@ -1085,6 +1085,7 @@ static int datasort_swap_memory(struct datasort_cfg *dcfg)
 	/*
 	 * Flush hash
 	 */
+	eblob_log(dcfg->log, EBLOB_LOG_ERROR, "MINUS9: flush L2HASH: start: bctl= %p", dcfg->bctl[0] );
 	for (offset = 0, i = 0; offset < dcfg->result->offset;
 			offset += dcfg->result->index[i++].disk_size) {
 		/* This entry was removed in binlog_apply */
@@ -1097,11 +1098,17 @@ static int datasort_swap_memory(struct datasort_cfg *dcfg)
 		 * like "remove all keys with given bctl"
 		 */
 		err = eblob_cache_remove_nolock(dcfg->b, &dcfg->result->index[i].key);
-		if (err != 0)
+		if (err != 0) {
 			EBLOB_WARNC(dcfg->log, EBLOB_LOG_DEBUG, -err,
 					"defrag: eblob_hash_remove_nolock: %s, offset: %" PRIu64,
 					eblob_dump_id(dcfg->result->index[i].key.id), offset);
+
+			if (err != -ENOENT) {
+				eblob_log(dcfg->log, EBLOB_LOG_ERROR, "MINUS9: cache_remove: err=%d: bctl= %p", err, dcfg->bctl[0] );
+			}
+		}
 	}
+	eblob_log(dcfg->log, EBLOB_LOG_ERROR, "MINUS9: flush L2HASH: stop: bctl= %p", dcfg->bctl[0] );
 	assert(i == dcfg->result->count);
 	assert(offset == dcfg->result->offset);
 
@@ -1264,6 +1271,8 @@ static void datasort_cleanup(struct datasort_cfg *dcfg)
 		if ((err = _eblob_base_ctl_cleanup(bctl)) != 0)
 			EBLOB_WARNC(dcfg->log, EBLOB_LOG_ERROR, err,
 					"defrag: _eblob_base_ctl_cleanup: FAILED");
+
+		eblob_log(dcfg->log, EBLOB_LOG_ERROR, "MINUS9: datasort_cleanup: bctl= %p", bctl );
 	}
 
 	/* Remove temporary directory */

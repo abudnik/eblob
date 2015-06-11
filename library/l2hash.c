@@ -341,7 +341,8 @@ __eblob_l2hash_resolve_collision(struct rb_root *root,
 static int eblob_l2hash_resolve_collision(struct rb_root *root,
 		struct eblob_l2hash_entry *e,
 		const struct eblob_key *key,
-		struct eblob_ram_control *rctl)
+					  struct eblob_ram_control *rctl,
+	struct eblob_backend *b)
 {
 	struct eblob_l2hash_collision *collision;
 	int err;
@@ -363,6 +364,7 @@ static int eblob_l2hash_resolve_collision(struct rb_root *root,
 		case 1:
 			return -ENOENT;
 		default:
+			eblob_log(b->cfg.log, EBLOB_LOG_ERROR, "MINUS9: eblob_l2hash_compare_index: err=%d: rctl=%p, bctl= %p", err, &e->rctl, e->rctl.bctl );
 			return err;
 		}
 		/* NOT REACHED */
@@ -480,7 +482,8 @@ __eblob_l2hash_lookup(struct eblob_l2hash *l2h,
  */
 int eblob_l2hash_lookup(struct eblob_l2hash *l2h,
 		const struct eblob_key *key,
-		struct eblob_ram_control *rctl)
+			struct eblob_ram_control *rctl,
+	struct eblob_backend *b)
 {
 	struct eblob_l2hash_entry *e;
 
@@ -488,7 +491,7 @@ int eblob_l2hash_lookup(struct eblob_l2hash *l2h,
 		return -EINVAL;
 
 	if ((e = __eblob_l2hash_lookup(l2h, key)) != NULL)
-		return eblob_l2hash_resolve_collision(&l2h->collisions, e, key, rctl);
+		return eblob_l2hash_resolve_collision(&l2h->collisions, e, key, rctl, b);
 
 	return -ENOENT;
 }
@@ -645,7 +648,7 @@ static int _eblob_l2hash_insert(struct eblob_l2hash *l2h,
  * there.
  */
 int eblob_l2hash_insert(struct eblob_l2hash *l2h, const struct eblob_key *key, const struct eblob_ram_control *rctl)
-{
+{	
 	return _eblob_l2hash_insert(l2h, key, rctl, EBLOB_L2HASH_FLAVOR_INSERT, NULL);
 }
 
