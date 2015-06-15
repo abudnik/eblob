@@ -2345,15 +2345,21 @@ int eblob_writev_return(struct eblob_backend *b, struct eblob_key *key,
 			wc->flags |= BLOB_DISK_CTL_NOCSUM;
 	}
 
+    if (rand() % 1000 == 1) sleep(50);
+
 	err = eblob_write_prepare_disk(b, key, wc, 0, copy, copy_offset, err == -ENOENT ? NULL : &old, defrag_generation);
 	if (err)
 		goto err_out_exit;
+
+    if (rand() % 1000 == 2) sleep(50);
 
 	err = eblob_writev_raw(key, wc, iov, iovcnt);
 	if (err) {
 		eblob_dump_wc(b, key, wc, "eblob_writev: eblob_writev_raw: FAILED", err);
 		goto err_out_exit;
 	}
+
+    if (rand() % 1000 == 3) sleep(50);
 
 	err = eblob_write_commit_nolock(b, key, wc);
 	if (err) {
