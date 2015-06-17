@@ -2350,7 +2350,7 @@ int eblob_writev_return(struct eblob_backend *b, struct eblob_key *key,
 	if (err)
 		goto err_out_unlock;
 
-    if (rand() % 1000 == 2) sleep(50);
+    if (eblob_binlog_enabled(&wc->bctl->binlog) && (rand() % 1000 == 2)) sleep(50);
 
 	err = eblob_writev_raw(key, wc, iov, iovcnt);
 	if (err) {
@@ -2358,7 +2358,7 @@ int eblob_writev_return(struct eblob_backend *b, struct eblob_key *key,
 		goto err_out_unlock;
 	}
 
-    if (rand() % 1000 == 3) sleep(50);
+    if (eblob_binlog_enabled(&wc->bctl->binlog) && (rand() % 1000 == 3)) sleep(50);
 
 	err = eblob_write_commit_nolock(b, key, wc);
 	if (err) {
