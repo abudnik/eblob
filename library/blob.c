@@ -1768,8 +1768,6 @@ static int eblob_write_prepare_disk(struct eblob_backend *b, struct eblob_key *k
 			"size: %" PRIu64 ", offset: %" PRIu64 ", prepare: %" PRIu64 "\n",
 			eblob_dump_id(key->id), wc->size, wc->offset, prepare_disk_size);
 
-	pthread_mutex_lock(&b->lock);
-
 	if (defrag_generation != b->defrag_generation) {
 		int disk;
 		err = eblob_cache_lookup(b, key, &upd_old, &disk);
@@ -1794,7 +1792,6 @@ static int eblob_write_prepare_disk(struct eblob_backend *b, struct eblob_key *k
 			copy_offset, old);
 
 err_out_exit:
-	pthread_mutex_unlock(&b->lock);
 	eblob_dump_wc(b, key, wc, "eblob_write_prepare_disk", err);
 	return err;
 }
@@ -2347,16 +2344,18 @@ int eblob_writev_return(struct eblob_backend *b, struct eblob_key *key,
 
     if (rand() % 1000 == 1) sleep(50);
 
+    	pthread_mutex_lock(&b->lock);
+
 	err = eblob_write_prepare_disk(b, key, wc, 0, copy, copy_offset, err == -ENOENT ? NULL : &old, defrag_generation);
 	if (err)
-		goto err_out_exit;
+		goto err_out_unlock;
 
     if (rand() % 1000 == 2) sleep(50);
 
 	err = eblob_writev_raw(key, wc, iov, iovcnt);
 	if (err) {
 		eblob_dump_wc(b, key, wc, "eblob_writev: eblob_writev_raw: FAILED", err);
-		goto err_out_exit;
+		goto err_out_unlock;
 	}
 
     if (rand() % 1000 == 3) sleep(50);
@@ -2364,9 +2363,11 @@ int eblob_writev_return(struct eblob_backend *b, struct eblob_key *key,
 	err = eblob_write_commit_nolock(b, key, wc);
 	if (err) {
 		eblob_dump_wc(b, key, wc, "eblob_writev: eblob_write_commit_nolock: FAILED", err);
-		goto err_out_exit;
+		goto err_out_unlock;
 	}
 
+err_out_unlock:
+	pthread_mutex_unlock(&b->lock);
 err_out_exit:
 	eblob_dump_wc(b, key, wc, "eblob_writev: finished", err);
 	if (err) {
