@@ -1574,7 +1574,7 @@ static int eblob_check_free_space(struct eblob_backend *b, uint64_t size)
  * NB! Caller should hold "backend" lock.
  */
 static int eblob_write_prepare_disk_ll(struct eblob_backend *b, struct eblob_key *key,
-		struct eblob_write_control *wc, uint64_t prepare_disk_size,
+		struct eblob_write_control *wc, int use_wc_flags, uint64_t prepare_disk_size,
 		enum eblob_copy_flavour copy, uint64_t copy_offset,
 		struct eblob_ram_control *old)
 {
@@ -1608,10 +1608,10 @@ static int eblob_write_prepare_disk_ll(struct eblob_backend *b, struct eblob_key
 			err = -EAGAIN;
 			goto err_out_exit;
 		}
-		if (wc->flags & BLOB_DISK_CTL_APPEND)
+		if (use_wc_flags && (wc->flags & BLOB_DISK_CTL_APPEND))
 			wc->offset += old->size;
 	} else {
-		if (wc->flags & BLOB_DISK_CTL_APPEND) {
+		if (use_wc_flags && (wc->flags & BLOB_DISK_CTL_APPEND)) {
 			/*
 			 * Append does not make any sense if there is no record
 			 * with this key
@@ -1655,7 +1655,7 @@ static int eblob_write_prepare_disk_ll(struct eblob_backend *b, struct eblob_key
 	 * times as much as requested This allows to not to copy data
 	 * frequently if we append records
 	 */
-	if (wc->flags & BLOB_DISK_CTL_APPEND)
+	if (use_wc_flags && (wc->flags & BLOB_DISK_CTL_APPEND))
 		wc->total_size *= 2;
 
 	ctl->data_offset += wc->total_size;
@@ -1716,7 +1716,7 @@ static int eblob_write_prepare_disk_ll(struct eblob_backend *b, struct eblob_key
 		if (copy_offset != 0) {
 			off_out += copy_offset;
 
-			if (wc->flags & BLOB_DISK_CTL_APPEND) {
+			if (use_wc_flags && (wc->flags & BLOB_DISK_CTL_APPEND)) {
 				wc->data_offset += copy_offset;
 				wc->total_data_size += copy_offset;
 			}
@@ -1840,8 +1840,9 @@ static int eblob_write_prepare_disk(struct eblob_backend *b, struct eblob_key *k
 	if (err)
 		goto err_out_exit;
 
-	err = eblob_write_prepare_disk_ll(b, key, wc, prepare_disk_size, copy,
-			copy_offset, old);
+	const int use_wc_flags = 1;
+	err = eblob_write_prepare_disk_ll(b, key, wc, use_wc_flags, prepare_disk_size,
+			copy, copy_offset, old);
 
 err_out_exit:
 	pthread_mutex_unlock(&b->lock);
@@ -1975,10 +1976,9 @@ static int eblob_write_commit_prepare(struct eblob_backend *b, struct eblob_key 
 		if (err != 0)
 			goto err_out_cleanup_wc;
 
-		/* Do not set any flags for prepare */
-		wc->flags = 0;
-
-		err = eblob_write_prepare_disk_ll(b, key, wc, size,
+		/* Do not use any flags for prepare */
+		const int use_wc_flags = 0;
+		err = eblob_write_prepare_disk_ll(b, key, wc, use_wc_flags, size,
 				EBLOB_COPY_RECORD, 0, &rctl);
 		if (err != 0)
 			goto err_out_cleanup_wc;
@@ -2158,8 +2158,8 @@ static int eblob_plain_writev_prepare(struct eblob_backend *b, struct eblob_key 
 			goto err_out_cleanup_wc;
 
 		/* FIXME: We are possibly oversubscribing size here */
-		wc->flags = 0;
-		err = eblob_write_prepare_disk_ll(b, key, wc,
+		const int use_wc_flags = 0;
+		err = eblob_write_prepare_disk_ll(b, key, wc, use_wc_flags,
 				wc->total_data_size + bounds.max,
 				EBLOB_COPY_RECORD, 0, &rctl);
 		if (err != 0)
