@@ -22,6 +22,7 @@
 #define __ELLIPTICS_BLOB_H
 
 #include <sys/types.h>
+#include <sys/time.h>
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -429,6 +430,8 @@ struct eblob_ram_control {
 	uint64_t		data_offset, index_offset;
 	uint64_t		size;
 	struct eblob_base_ctl	*bctl;
+	struct timeval		insert_time;
+	char			from;
 };
 
 struct eblob_backend *eblob_init(struct eblob_config *c);

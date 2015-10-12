@@ -662,7 +662,7 @@ int eblob_cache_insert(struct eblob_backend *b, struct eblob_key *key,
 	}
 
 	if (b->cfg.blob_flags & EBLOB_L2HASH) {
-		err = eblob_l2hash_upsert(&b->l2hash, key, ctl, &replaced);
+		err = eblob_l2hash_upsert(&b->l2hash, key, ctl, &replaced, b);
 		entry_size = EBLOB_L2HASH_ENTRY_SIZE;
 	} else {
 		err = eblob_hash_replace_nolock(&b->hash, key, ctl, &replaced);
@@ -687,7 +687,7 @@ int eblob_cache_remove_nolock(struct eblob_backend *b, struct eblob_key *key)
 	int err;
 
 	if (b->cfg.blob_flags & EBLOB_L2HASH) {
-		err = eblob_l2hash_remove(&b->l2hash, key);
+		err = eblob_l2hash_remove(&b->l2hash, key, b);
 		entry_size = EBLOB_L2HASH_ENTRY_SIZE;
 	} else {
 		err = eblob_hash_remove_nolock(&b->hash, key);
@@ -721,7 +721,7 @@ int eblob_cache_lookup(struct eblob_backend *b, struct eblob_key *key,
 	pthread_rwlock_rdlock(&b->hash.root_lock);
 	if (b->cfg.blob_flags & EBLOB_L2HASH) {
 		/* If l2hash is enabled - look in it */
-		err = eblob_l2hash_lookup(&b->l2hash, key, res);
+		err = eblob_l2hash_lookup(&b->l2hash, key, res, b);
 	} else {
 		/* Look in memory cache */
 		err = eblob_hash_lookup_nolock(&b->hash, key, res);
@@ -757,6 +757,7 @@ static int eblob_blob_iter(struct eblob_disk_control *dc, struct eblob_ram_contr
 			(unsigned long long)dc->data_size, (unsigned long long)dc->disk_size,
 			eblob_dump_dctl_flags(dc->flags));
 
+	if (ctl) ctl->from = 'i';
 	return eblob_cache_insert(b, &dc->key, ctl);
 }
 

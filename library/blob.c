@@ -1253,7 +1253,7 @@ static void eblob_wc_to_rctl(const struct eblob_write_control *wc,
  * eblob_commit_ram() - constructs ram control from write control and puts in
  * to hash
  */
-static int eblob_commit_ram(struct eblob_backend *b, struct eblob_key *key, struct eblob_write_control *wc)
+static int eblob_commit_ram(struct eblob_backend *b, struct eblob_key *key, struct eblob_write_control *wc, char from)
 {
 	struct eblob_ram_control ctl;
 	int err;
@@ -1263,6 +1263,7 @@ static int eblob_commit_ram(struct eblob_backend *b, struct eblob_key *key, stru
 		return 0;
 
 	eblob_wc_to_rctl(wc, &ctl);
+	ctl.from = from;
 	err = eblob_cache_insert(b, key, &ctl);
 	if (err) {
 		eblob_log(b->cfg.log, EBLOB_LOG_ERROR,
@@ -1903,7 +1904,7 @@ int eblob_write_prepare(struct eblob_backend *b, struct eblob_key *key,
 		if (err)
 			goto err_out_cleanup_wc;
 
-		err = eblob_commit_ram(b, key, &wc);
+		err = eblob_commit_ram(b, key, &wc, 'q');
 		if (err)
 			goto err_out_cleanup_wc;
 	}
@@ -1931,7 +1932,7 @@ int eblob_hash(struct eblob_backend *b, void *dst,
  * index and puts entry to hash.
  */
 static int eblob_write_commit_ll(struct eblob_backend *b, struct eblob_key *key,
-		struct eblob_write_control *wc)
+				 struct eblob_write_control *wc, char from)
 {
 	FORMATTED(HANDY_TIMER_SCOPE, ("eblob.%u.disk.write.commit", b->cfg.stat_id));
 
@@ -1947,7 +1948,7 @@ static int eblob_write_commit_ll(struct eblob_backend *b, struct eblob_key *key,
 	if (err)
 		goto err_out_exit;
 
-	err = eblob_commit_ram(b, key, wc);
+	err = eblob_commit_ram(b, key, wc, from);
 	if (err < 0)
 		goto err_out_exit;
 
@@ -2040,7 +2041,7 @@ int eblob_write_commit(struct eblob_backend *b, struct eblob_key *key,
 	if (err != 0)
 		goto err_out_exit;
 
-	err = eblob_write_commit_ll(b, key, &wc);
+	err = eblob_write_commit_ll(b, key, &wc, 'c');
 	if (err != 0)
 		goto err_out_cleanup_wc;
 
@@ -2107,7 +2108,7 @@ static int eblob_try_overwritev(struct eblob_backend *b, struct eblob_key *key,
 	eblob_stat_inc(b->stat, EBLOB_GST_WRITES_NUMBER);
 	eblob_stat_add(b->stat, EBLOB_GST_WRITES_SIZE, wc->size);
 
-	err = eblob_write_commit_ll(b, key, wc);
+	err = eblob_write_commit_ll(b, key, wc, 'o');
 	if (err) {
 		eblob_dump_wc(b, key, wc, "eblob_try_overwrite: ERROR-eblob_write_commit_ll", err);
 		goto err_out_cleanup_wc;
@@ -2233,7 +2234,7 @@ int eblob_plain_writev(struct eblob_backend *b, struct eblob_key *key,
 
 	/* Re-commit record to ram if it was copied */
 	if (prepared) {
-		err = eblob_commit_ram(b, key, &wc);
+		err = eblob_commit_ram(b, key, &wc, 'p');
 		if (err != 0)
 			goto err_out_cleanup_wc;
 	}
@@ -2392,7 +2393,7 @@ int eblob_writev_return(struct eblob_backend *b, struct eblob_key *key,
 		goto err_out_cleanup_wc;
 	}
 
-	err = eblob_write_commit_ll(b, key, wc);
+	err = eblob_write_commit_ll(b, key, wc, 'w');
 	if (err) {
 		eblob_dump_wc(b, key, wc, "eblob_writev: eblob_write_commit_ll: FAILED", err);
 		goto err_out_cleanup_wc;

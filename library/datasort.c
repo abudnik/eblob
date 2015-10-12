@@ -1282,6 +1282,7 @@ static void datasort_cleanup(struct datasort_cfg *dcfg)
 		if ((err = _eblob_base_ctl_cleanup(bctl)) != 0)
 			EBLOB_WARNC(dcfg->log, EBLOB_LOG_ERROR, err,
 					"defrag: _eblob_base_ctl_cleanup: FAILED");
+		gettimeofday(&bctl->defrag_stop_time, NULL);
 	}
 
 	/* Remove temporary directories */
@@ -1362,6 +1363,7 @@ int eblob_generate_sorted_data(struct datasort_cfg *dcfg)
 		eblob_base_wait_locked(bctl);
 		err = eblob_binlog_start(&bctl->binlog);
 		pthread_mutex_unlock(&bctl->lock);
+		gettimeofday(&bctl->defrag_start_time, NULL);
 		if (err != 0) {
 			pthread_mutex_unlock(&dcfg->b->lock);
 			EBLOB_WARNC(dcfg->log, EBLOB_LOG_ERROR, -err, "defrag: eblob_binlog_start: %s",
@@ -1482,8 +1484,10 @@ int eblob_generate_sorted_data(struct datasort_cfg *dcfg)
 	dcfg->b->defrag_generation += 1;
 
 	/* Unlock */
-	for (n = 0; n < dcfg->bctl_cnt; ++n)
-		pthread_mutex_unlock(&dcfg->bctl[n]->lock);
+	for (n = 0; n < dcfg->bctl_cnt; ++n) {
+		struct eblob_base_ctl * const bctl = dcfg->bctl[n];
+		pthread_mutex_unlock(&bctl->lock);
+	}
 	pthread_mutex_unlock(&dcfg->b->lock);
 
 	eblob_log(dcfg->log, EBLOB_LOG_INFO, "blob: defrag: datasort: success\n");

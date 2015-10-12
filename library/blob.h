@@ -169,6 +169,10 @@ struct eblob_base_ctl {
 	int			sorted;
 	/* Per bctl aka "local" stats */
 	struct eblob_stat	*stat;
+
+	struct timeval		defrag_start_time;
+	struct timeval		defrag_stop_time;
+
 	char			name[];
 };
 

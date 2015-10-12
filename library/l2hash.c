@@ -38,6 +38,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sys/time.h>
+
 /**
  * eblob_l2hash_key() - second hash for eblob key
  */
@@ -117,7 +119,7 @@ int eblob_l2hash_destroy(struct eblob_l2hash *l2h)
 /**
  * __eblob_l2hash_index_hdr() - extracts disk control from index
  */
-static int __eblob_l2hash_index_hdr(const struct eblob_ram_control *rctl, struct eblob_disk_control *dc)
+static int __eblob_l2hash_index_hdr(const struct eblob_ram_control *rctl, struct eblob_disk_control *dc, struct eblob_backend *b)
 {
 	int err;
 
@@ -125,8 +127,16 @@ static int __eblob_l2hash_index_hdr(const struct eblob_ram_control *rctl, struct
 	assert(rctl->bctl != NULL);
 	assert(dc != NULL);
 
-	err = pread(eblob_get_index_fd(rctl->bctl), dc,
+	const int fd = eblob_get_index_fd(rctl->bctl);
+	err = pread(fd, dc,
 			sizeof(struct eblob_disk_control), rctl->index_offset);
+	if (err == -EBADF) {
+		eblob_log(b->cfg.log, EBLOB_LOG_ERROR, "blob: __eblob_l2hash_index_hdr: %d, fd: %d, from: %c, insert_time: %ld.%ld"
+			  ", defrag_start_time: %ld.%ld, defrag_stop_time: %ld.%ld\n",
+			  err, fd, rctl->from, (long)rctl->insert_time.tv_sec, (long)rctl->insert_time.tv_usec,
+			  (long)rctl->bctl->defrag_start_time.tv_sec, (long)rctl->bctl->defrag_start_time.tv_usec,
+			  (long)rctl->bctl->defrag_stop_time.tv_sec, (long)rctl->bctl->defrag_stop_time.tv_usec);
+	}
 	if (err != sizeof(struct eblob_disk_control))
 		return (err == -1) ? -errno : -EINTR; /* TODO: handle signal case gracefully */
 	return 0;
@@ -143,7 +153,8 @@ static int __eblob_l2hash_index_hdr(const struct eblob_ram_control *rctl, struct
  *	Other:	Error
  */
 static int eblob_l2hash_compare_index(const struct eblob_key *key,
-		const struct eblob_ram_control *rctl)
+				      const struct eblob_ram_control *rctl,
+				      struct eblob_backend *b)
 {
 	struct eblob_disk_control dc;
 	ssize_t err;
@@ -152,7 +163,7 @@ static int eblob_l2hash_compare_index(const struct eblob_key *key,
 	assert(rctl != NULL);
 
 	/* Got to disk for index header */
-	if ((err = __eblob_l2hash_index_hdr(rctl, &dc)) != 0)
+	if ((err = __eblob_l2hash_index_hdr(rctl, &dc, b)) != 0)
 		return err;
 
 	/* Compare given @key with index */
@@ -217,6 +228,7 @@ static int __eblob_l2hash_collision_insert(struct rb_root *root,
 		return -ENOMEM;
 	collision->key = *key;
 	collision->rctl = *rctl;
+	gettimeofday(&collision->rctl.insert_time, NULL);
 
 	rb_link_node(&collision->node, parent, node);
 	rb_insert_color(&collision->node, root);
@@ -253,7 +265,8 @@ __eblob_l2hash_resolve_collision(struct rb_root *root,
 static int eblob_l2hash_resolve_collision(struct rb_root *root,
 		struct eblob_l2hash_entry *e,
 		const struct eblob_key *key,
-		struct eblob_ram_control *rctl)
+					  struct eblob_ram_control *rctl,
+					  struct eblob_backend *b)
 {
 	struct eblob_l2hash_collision *collision;
 	int err;
@@ -268,7 +281,7 @@ static int eblob_l2hash_resolve_collision(struct rb_root *root,
 	 * to cached ram control.
 	 */
 	if (e->collision == 0) {
-		switch((err = eblob_l2hash_compare_index(key, &e->rctl))) {
+		switch((err = eblob_l2hash_compare_index(key, &e->rctl, b))) {
 		case 0:
 			*rctl = e->rctl;
 			return 0;
@@ -352,6 +365,7 @@ static int __eblob_l2hash_noncollision_insert(struct rb_root *root,
 		return -ENOMEM;
 	e->l2key = eblob_l2hash_key(key);
 	e->rctl = *rctl;
+	gettimeofday(&e->rctl.insert_time, NULL);
 
 	rb_link_node(&e->node, parent, node);
 	rb_insert_color(&e->node, root);
@@ -392,7 +406,8 @@ __eblob_l2hash_lookup(struct eblob_l2hash *l2h,
  */
 int eblob_l2hash_lookup(struct eblob_l2hash *l2h,
 		const struct eblob_key *key,
-		struct eblob_ram_control *rctl)
+			struct eblob_ram_control *rctl,
+			struct eblob_backend *b)
 {
 	struct eblob_l2hash_entry *e;
 
@@ -400,7 +415,7 @@ int eblob_l2hash_lookup(struct eblob_l2hash *l2h,
 		return -EINVAL;
 
 	if ((e = __eblob_l2hash_lookup(l2h, key)) != NULL)
-		return eblob_l2hash_resolve_collision(&l2h->collisions, e, key, rctl);
+		return eblob_l2hash_resolve_collision(&l2h->collisions, e, key, rctl, b);
 
 	return -ENOENT;
 }
@@ -414,7 +429,8 @@ int eblob_l2hash_lookup(struct eblob_l2hash *l2h,
  *	Other:		Error
  */
 int eblob_l2hash_remove(struct eblob_l2hash *l2h,
-		const struct eblob_key *key)
+			const struct eblob_key *key,
+			struct eblob_backend *b)
 {
 	struct eblob_l2hash_collision *collision;
 	struct eblob_l2hash_entry *e;
@@ -432,7 +448,7 @@ int eblob_l2hash_remove(struct eblob_l2hash *l2h,
 	 * remove entry from tree
 	 */
 	if (e->collision == 0) {
-		switch(err = eblob_l2hash_compare_index(key, &e->rctl)) {
+		switch(err = eblob_l2hash_compare_index(key, &e->rctl, b)) {
 		case 0:
 			rb_erase(&e->node, &l2h->root);
 			free(e);
@@ -470,7 +486,8 @@ static int _eblob_l2hash_insert(struct eblob_l2hash *l2h,
 		const struct eblob_key *key,
 		const struct eblob_ram_control *rctl,
 		const unsigned int flavor,
-		int *replaced)
+				int *replaced,
+				struct eblob_backend *b)
 {
 	struct eblob_l2hash_collision *collision;
 	struct eblob_l2hash_entry *e;
@@ -501,7 +518,7 @@ static int _eblob_l2hash_insert(struct eblob_l2hash *l2h,
 		struct eblob_disk_control dc;
 
 		/* No collisions - only one entry to check */
-		if ((err = __eblob_l2hash_index_hdr(&e->rctl, &dc)) != 0)
+		if ((err = __eblob_l2hash_index_hdr(&e->rctl, &dc, b)) != 0)
 			return err;
 		if (eblob_id_cmp(key->id, dc.key.id) == 0) {
 			/* Not a collision - updating in-place */
@@ -512,7 +529,9 @@ static int _eblob_l2hash_insert(struct eblob_l2hash *l2h,
 			if (replaced != NULL)
 				*replaced = 1;
 
+			const struct timeval tv_saved = e->rctl.insert_time;
 			e->rctl = *rctl;
+			e->rctl.insert_time = tv_saved;
 			return 0;
 		}
 
@@ -543,7 +562,9 @@ static int _eblob_l2hash_insert(struct eblob_l2hash *l2h,
 	if (flavor == EBLOB_L2HASH_FLAVOR_INSERT)
 		return -EEXIST;
 	collision = rb_entry(n, struct eblob_l2hash_collision, node);
+	const struct timeval tv_saved = collision->rctl.insert_time;
 	collision->rctl = *rctl;
+	collision->rctl.insert_time = tv_saved;
 
 	/* If entry was replaced - notify caller */
 	if (replaced != NULL)
@@ -556,25 +577,26 @@ static int _eblob_l2hash_insert(struct eblob_l2hash *l2h,
  * eblob_l2hash_insert() - inserts entry in cache. Fails if entry is already
  * there.
  */
-int eblob_l2hash_insert(struct eblob_l2hash *l2h, const struct eblob_key *key, const struct eblob_ram_control *rctl)
+int eblob_l2hash_insert(struct eblob_l2hash *l2h, const struct eblob_key *key, const struct eblob_ram_control *rctl, struct eblob_backend *b)
 {
-	return _eblob_l2hash_insert(l2h, key, rctl, EBLOB_L2HASH_FLAVOR_INSERT, NULL);
+	return _eblob_l2hash_insert(l2h, key, rctl, EBLOB_L2HASH_FLAVOR_INSERT, NULL, b);
 }
 
 /**
  * eblob_l2hash_update() - updates entry in cache. Fails if entry is not
  * already there.
  */
-int eblob_l2hash_update(struct eblob_l2hash *l2h, const struct eblob_key *key, const struct eblob_ram_control *rctl)
+int eblob_l2hash_update(struct eblob_l2hash *l2h, const struct eblob_key *key, const struct eblob_ram_control *rctl, struct eblob_backend *b)
 {
-	return _eblob_l2hash_insert(l2h, key, rctl, EBLOB_L2HASH_FLAVOR_UPDATE, NULL);
+	return _eblob_l2hash_insert(l2h, key, rctl, EBLOB_L2HASH_FLAVOR_UPDATE, NULL, b);
 }
 
 /**
  * eblob_l2hash_upsert() - updates or inserts entry in cache (hence the name).
  */
 int eblob_l2hash_upsert(struct eblob_l2hash *l2h, const struct eblob_key *key,
-		const struct eblob_ram_control *rctl, int *replaced)
+			const struct eblob_ram_control *rctl, int *replaced,
+			struct eblob_backend *b)
 {
-	return _eblob_l2hash_insert(l2h, key, rctl, EBLOB_L2HASH_FLAVOR_UPSERT, replaced);
+	return _eblob_l2hash_insert(l2h, key, rctl, EBLOB_L2HASH_FLAVOR_UPSERT, replaced, b);
 }
