@@ -1,3 +1,9 @@
+eblob (0.23.5-extralog) unstable; urgency=low
+
+  * L2 hash: extra logging on -9 error
+
+ -- Andrey Budnik <abudnik@yandex.ru>  Mon, 12 Oct 2015 20:16:50 +0400
+
 eblob (0.23.5) unstable; urgency=low
 
   * build: fixed build: removed useless scope resolution
