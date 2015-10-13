@@ -28,4 +28,12 @@ run_tests()
     $(find . -name eblob_stress) -f1000 -D0 -I100000 -i64 -r 40 -S10 -F2112 -T32 -l4 -o 0
 }
 
-run_tests 2>&1
+echo -e "\n####################################################################"
+echo -e "                            RUNNING TESTS\n"
+
+run_tests >tests_result.log 2>&1 &
+wait
+echo "$(<tests_result.log)"
+
+echo -e "\n                          TESTS FINISHED"
+echo -e "####################################################################\n"
