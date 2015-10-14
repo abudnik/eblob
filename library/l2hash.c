@@ -130,7 +130,7 @@ static int __eblob_l2hash_index_hdr(const struct eblob_ram_control *rctl, struct
 	const int fd = eblob_get_index_fd(rctl->bctl);
 	err = pread(fd, dc,
 			sizeof(struct eblob_disk_control), rctl->index_offset);
-	if (err == -EBADF) {
+	if (err == -1 && errno == EBADF) {
 		eblob_log(b->cfg.log, EBLOB_LOG_ERROR, "blob: __eblob_l2hash_index_hdr: %d, fd: %d, from: %c, insert_time: %ld.%ld"
 			  ", defrag_start_time: %ld.%ld, defrag_stop_time: %ld.%ld\n",
 			  err, fd, rctl->from, (long)rctl->insert_time.tv_sec, (long)rctl->insert_time.tv_usec,

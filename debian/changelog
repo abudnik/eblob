@@ -1,3 +1,9 @@
+eblob (0.23.5-extralog2) unstable; urgency=low
+
+  * L2 hash: extra logging on -9 error (small fix)
+
+ -- Andrey Budnik <abudnik@yandex.ru>  Mon, 14 Oct 2015 13:16:10 +0400
+
 eblob (0.23.5-extralog) unstable; urgency=low
 
   * L2 hash: extra logging on -9 error
